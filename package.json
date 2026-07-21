@@ -1,5 +1,15 @@
 {
   "name": "toutiao-publish",
+  "version": "1.0.0",
   "private": true,
-  "dependencies": {}
+  "description": "头条号文章自动发布助手（playwright-core + 动态 CDP，已修复原仓库冲突版）",
+  "license": "MIT",
+  "dependencies": {},
+  "scripts": {
+    "nav": "node scripts/nav-publish.js",
+    "fill": "node scripts/fill.js",
+    "cover": "node scripts/upload-cover.js",
+    "gen-cover": "node scripts/gen-cover.js",
+    "publish": "node scripts/publish.js"
+  }
 }
