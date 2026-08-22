@@ -35,7 +35,18 @@ browser action=status  # 读 cdpPort 字段
 ```
 
 然后以环境变量传给脚本：`TTC_CDP_PORT=<port> node scripts/xxx.js`。
-（本机实测当前端口 7774，重启后可能变。）
+（本机实测端口 7774 / 1585 / 13935 等，重启后可能变。）
+
+### 浏览器启动
+
+发布前先确保 OpenClaw 浏览器已运行：
+
+```
+browser action=start        # 若 running:false
+browser action=status       # 读 cdpPort
+```
+
+确认 `cdpReady:true` 后，再以 `TTC_CDP_PORT=<port>` 跑脚本。未启动就跑 `nav-publish.js` 会连不上。
 
 ### playwright-core 路径
 
@@ -89,7 +100,9 @@ await page.goto('https://mp.toutiao.com/profile_v4/graphic/publish', {
 
 根据关键词生成：
 - 标题：20-30字，吸引眼球，符合头条风格（感叹号、问句、数字）
-- 正文：500-800字，分段清晰，口语化
+- 正文：按用户要求控制字数。⚠️ **字数指字符数，不是文件字节数**（中文字 UTF-8 占 3 字节）；填完用 DOM 提取 `.ProseMirror.innerText.length` 实测为准，低于要求需扩写重填（重填前先 `Ctrl+A`+`Delete` 清空）
+
+> 中文内容不要直接用 `fill.js "<标题>" "<正文>"` 传参（PowerShell 引号会破坏）；写成 `.js` 文件读取更稳。
 
 ### 第4步：填写标题
 
@@ -113,7 +126,15 @@ await page.keyboard.type(paragraph);
 await page.keyboard.press('Enter'); await page.keyboard.press('Enter'); // 段落间距
 ```
 
-统一入口：`TTC_CDP_PORT=<port> node scripts/fill.js "<标题>" "<正文(\n\n分段)>"`
+统一入口：`TTC_CDP_PORT=<port> node scripts/fill.js "<标题>" "<正文(\n\n分段)>"`（⚠️ 中文内容建议改文件读取式执行，见上面第3步提示）。
+
+**核验渲染（image 工具看不了本地截图，改用 DOM 提取）**：
+```js
+// 脚本内 page.evaluate 读取
+const v = document.querySelector('.editor-title textarea').value;
+const len = document.querySelector('.ProseMirror').innerText.length;
+```
+把结果写文件再用 `Get-Content -Encoding UTF8` 读取（PowerShell 默认 GBK 会乱码）。`
 
 ### 第6步：上传封面
 
@@ -187,7 +208,13 @@ TTC_CDP_PORT=<port> node scripts/publish.js
 - 连接地址：`http://127.0.0.1:<cdpPort>`
 
 ## 详细文档
-完整规则、失败原因排查、登录专题详见 [references/detailed-rules.md](references/detailed-rules.md)
+完整规则、失败原因排查、登录专题详见 [references/detailed-rules.md](references/detailed-rules.md)；发布全过程踩坑（23 条 + 行不通方案）详见 [references/troubleshooting.md](references/troubleshooting.md)。
+
+## 已发布示例内容（content/）
+本 skill 实际跑通过的内容与封面也一并归档，便于改稿或核对：
+- `content/article_chujing.txt` + `content/cover_chujing.jpg`（关键词「处境」）
+- `content/article_truth.txt` + `content/cover_truth.jpg`（关键词「真理」，1564 字）
+- `node scripts/gen-cover.js "<英文描述>" <输出路径>` 生成封面，默认输出 `content/cover.jpg`。
 
 ## 安装与运行全过程的「问题—解决方法」清单
-从原仓库冲突版适配本机、到真实发布「敬老」文章踩过的所有坑（含 SSRF 拦截、PowerShell 中文引号、`page.evaluate` 单参限制、头条封面上传必须先点 `.article-cover-add` 开弹窗等），已整理为 [references/troubleshooting.md](references/troubleshooting.md)，建议发布前先读一遍。
+从原仓库冲突版适配本机、到真实发布「敬老」「处境」「真理」文章踩过的所有坑（含 SSRF 拦截、浏览器未启动、PowerShell 中文引号与 stdout 不刷新、字数字符≠字节、重填残留、封面上传必须先点 `.article-cover-add` 开弹窗等），已整理为 [references/troubleshooting.md](references/troubleshooting.md)（共 23 条 + 行不通方案清单），建议发布前先读一遍。
