@@ -107,21 +107,28 @@ await page.goto('https://mp.toutiao.com/profile_v4/graphic/publish', {
 > 中文内容不要直接用 `fill.js "<标题>" "<正文>"` 传参（PowerShell 引号会破坏）；写成 `.js` 文件读取更稳。
 > **Markdown 文章用 `md2toutiao.js` 转换后填入**（见第3.5步），它会把 Markdown 解析为真实样式（标题/加粗/引用），列表降级为「• 」项目符号文本。
 
-### 第3.5步：Markdown → 头条可渲染格式（关键新增规则）
+### 第3.5步：Markdown → 头条可渲染格式（关键新增规则，是第5步「填写正文」的前置阶段）
 
-**规则：生成的文章若是 Markdown 格式，必须先转换为头条可渲染格式，再填入编辑器。禁止把 Markdown 原样填入。**
+**执行顺序（强制）：**
+1. 第3步生成文章（建议用 Markdown：支持 `# 标题`、`**加粗**`、`> 引用`、`- 列表`）。
+2. 判断正文是否为 Markdown 格式（含 `#`/`**`/`>`/`- 列表` 等语法）。
+3. **若是 Markdown：必须先完整转换，再填入**。禁止把 Markdown 原样填入编辑器。
+4. 转换完成、确认无误后，才进入第5步「填入输入框」。
+
+> 即「先生成 → 再判断 → 是 md 则先转换 → 转换完才填入」。转换与填入是两个阶段，不能合并或颠倒。
 
 头条编辑器是 syl editor（基于 ProseMirror），自带 `header / bold / block_quote` 工具栏工具，可施加**真实样式**。
 本 skill 提供转换器 `scripts/md2toutiao.js`：
 
 ```bash
-# 预览转换结果（不连浏览器，用于核验结构）
-node scripts/md2toutiao.js content/article_neon.txt --preview
+# 阶段一·转换（不连浏览器，纯解析+预览，用于核验转换是否完整正确）
+node scripts/md2toutiao.js content/article_xxx.txt --preview
 
-# 连接浏览器并真实施加样式后填入（需先 nav-publish 并设 TTC_CDP_PORT）
-TTC_CDP_PORT=<port> node scripts/md2toutiao.js content/article_neon.txt --fill
+# 阶段二·填入（需先 nav-publish 到发布页并设 TTC_CDP_PORT；转换已在 preview 阶段完成，此处只负责施加样式+填入）
+TTC_CDP_PORT=<port> node scripts/md2toutiao.js content/article_xxx.txt --fill
 ```
 
+> **务必先跑 `--preview` 确认转换结果（标题/引用/列表/加粗结构齐全、无遗漏），再跑 `--fill` 填入。** `--preview` 不依赖浏览器，可反复核验。
 转换器对 Markdown 的处理规则（已实测）：
 
 | Markdown | 头条渲染结果 | 实现方式 |
@@ -153,6 +160,10 @@ await page.evaluate((t) => {
 ```
 
 ### 第5步：填写正文
+
+⚠️ 正文来源分两种情况：
+- **纯文本文章**：直接用 `fill.js` 逐字填入（见下）。
+- **Markdown 文章**：**必须先完成第3.5步的「转换」**（`--preview` 已验证结构），再用 `md2toutiao.js --fill` 填入。不可把 Markdown 原样交给 `fill.js`。
 
 ⚠️ **ProseMirror 只认键盘输入**，必须用 `keyboard.type()` 逐字，段落之间**按两次 Enter**：
 

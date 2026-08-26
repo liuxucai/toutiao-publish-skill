@@ -1,4 +1,0 @@
-{
-  "after1": "<p class=\"pgc-p\" data-track=\"1\">A说<strong>B海</strong>C</p><p><br></p>",
-  "after2": "<p class=\"pgc-p\" data-track=\"1\">A说<strong>B海</strong></p><p class=\"pgc-p\" data-track=\"29\">D说<strong>E月</strong></p><p><br></p>"
-}
