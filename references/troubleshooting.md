@@ -75,6 +75,7 @@
 | # | 问题 | 现象 | 解决方法 |
 |---|------|------|---------|
 | 23 | 误点「定时发布」而非「确认发布」 | 发布弹窗里「定时发布」与「确认发布」相邻，容易误点导致没真正发出 | `publish.js` 流程固定——先点「预览并发布」等待约 6 秒，再点「确认发布」二次弹窗；最后校验 URL 是否跳到 `/profile_v4/graphic/articles` 判定成功，绝不碰「定时发布」 |
+| 24 | Markdown 文章原样填入，读者看到 `#`/`*`/`>` 原始符号 | 头条 syl editor（ProseMirror）**不渲染 Markdown 语法**，`# 标题` `**加粗**` `> 引用` `- 列表` 都当成普通文字显示 | 新增规则：Markdown 文章先用 `md2toutiao.js` 转换——解析为结构化 block，再用工具栏 `header`/`bold`/`block_quote` **真实施加样式**（列表降级为「• 」项目符号文本）。转换后用 DOM 核验 `hasH1/hasStrong/hasQuote` 与 `innerText.length`，确认无 Markdown 符号残留。禁用 `fill.js` 直接传 Markdown |
 
 ---
 
@@ -95,3 +96,9 @@
 - ❌ 重新 fill 前不清空（旧内容残留，应先 Ctrl+A + Delete）
 - ❌ `Get-Content` 默认读日志（中文乱码，加 `-Encoding UTF8`）
 - ❌ 浏览器未启动就跑导航脚本（先 `browser start`）
+- ❌ **把 Markdown 原样填入头条编辑器**（头条 syl editor 不渲染 Markdown，`# 标题`/`**加粗**`/`> 引用`/`- 列表` 会以原始符号显示给读者；必须先用 `md2toutiao.js` 转换为真实标题/加粗/引用样式，列表降级为「• 」项目符号文本）
+- ❌ 给标题/引用 block 先 `Shift+Home` 全选再点工具栏工具（选中态下按 Enter 会删掉整段文字，标题变空；正确做法：打完字光标在行尾直接点工具）
+- ❌ 给加粗选中后不收起选区就 Enter（同理会删字；选中加粗后应 `ArrowRight` 收起选区再继续）
+- ❌ 用 DOM `.click()` 点 `bold` 工具按钮（ProseMirror 失焦使选区坍塌，加粗失效；必须用真实鼠标 `page.click('.syl-toolbar-tool.bold')`）
+- ❌ 想用脚本点列表工具 `list_util`（它是下拉项，选项不在 DOM 暴露，无法脚本点击；列表降级为「• 」文本）
+- ❌ 段落间按两次 Enter（会留下空 `<p>` 段；单 Enter 即可，头条 `<p>` 自带间距）

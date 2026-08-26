@@ -100,9 +100,45 @@ await page.goto('https://mp.toutiao.com/profile_v4/graphic/publish', {
 
 根据关键词生成：
 - 标题：20-30字，吸引眼球，符合头条风格（感叹号、问句、数字）
-- 正文：按用户要求控制字数。⚠️ **字数指字符数，不是文件字节数**（中文字 UTF-8 占 3 字节）；填完用 DOM 提取 `.ProseMirror.innerText.length` 实测为准，低于要求需扩写重填（重填前先 `Ctrl+A`+`Delete` 清空）
+- 正文：建议用 **Markdown** 写作（支持 `# 标题`、`**加粗**`、`> 引用`、`- 列表`），结构清晰、便于复用。
+  ⚠️ **但头条号编辑器【不渲染 Markdown 语法】**——直接把 `# 标题`、`**加粗**` 原样填入，读者看到的是一堆 `#`、`*`、`>` 符号，而不是标题/加粗/引用/列表样式（已实测验证）。
+  ⚠️ **字数指字符数，不是文件字节数**（中文字 UTF-8 占 3 字节）；填完用 DOM 提取 `.ProseMirror.innerText.length` 实测为准，低于要求需扩写重填（重填前先 `Ctrl+A`+`Delete` 清空）。
 
 > 中文内容不要直接用 `fill.js "<标题>" "<正文>"` 传参（PowerShell 引号会破坏）；写成 `.js` 文件读取更稳。
+> **Markdown 文章用 `md2toutiao.js` 转换后填入**（见第3.5步），它会把 Markdown 解析为真实样式（标题/加粗/引用），列表降级为「• 」项目符号文本。
+
+### 第3.5步：Markdown → 头条可渲染格式（关键新增规则）
+
+**规则：生成的文章若是 Markdown 格式，必须先转换为头条可渲染格式，再填入编辑器。禁止把 Markdown 原样填入。**
+
+头条编辑器是 syl editor（基于 ProseMirror），自带 `header / bold / block_quote` 工具栏工具，可施加**真实样式**。
+本 skill 提供转换器 `scripts/md2toutiao.js`：
+
+```bash
+# 预览转换结果（不连浏览器，用于核验结构）
+node scripts/md2toutiao.js content/article_neon.txt --preview
+
+# 连接浏览器并真实施加样式后填入（需先 nav-publish 并设 TTC_CDP_PORT）
+TTC_CDP_PORT=<port> node scripts/md2toutiao.js content/article_neon.txt --fill
+```
+
+转换器对 Markdown 的处理规则（已实测）：
+
+| Markdown | 头条渲染结果 | 实现方式 |
+|----------|--------------|----------|
+| `# 标题` ~ `######` | 真实 `<h1>` 标题 | 整块定位后点工具栏 `header` 工具 |
+| `**加粗**` | 真实 `<strong>` 加粗 | 选中对应文字点工具栏 `bold`（**真实鼠标点击**，非 DOM click） |
+| `> 引用` | 真实 `<blockquote>` 引用块 | 整块定位后点工具栏 `block_quote` 工具 |
+| `- 列表` / `* 列表` | 「• 」项目符号文本段落 | 工具栏列表为下拉项且无 DOM 可点选项，降级为项目符号文本（头条编辑器仍会美化排版） |
+
+**实现要点（踩坑后确定，勿改）**：
+- 标题/引用：打完字光标在行尾，**直接点工具栏工具**（不要 `Shift+Home` 选中整行）。若在「选中态」下按 Enter，会删掉选中文字导致标题变空。
+- 加粗：打完字后 `Shift+ArrowLeft×n` 选中目标词 → 真实鼠标 `page.click('.syl-toolbar-tool.bold')` → 收起选区 `ArrowRight`（否则后续 Enter 删字）。
+- `list_util` 是下拉工具，其选项不在 DOM 暴露，无法用脚本点；故列表降级为「• 」文本。
+- 段落间距：单 `Enter` 即可（`<p>` 自带间距），双 Enter 会留空段。
+- 正文开头若第一个 block 与标题相同（重复 H1），转换器自动去除以免标题重复显示。
+
+> 转换后用 DOM 核验 `hasH1/hasStrong/hasQuote` 与 `innerText.length`，确认无原始 Markdown 符号残留。
 
 ### 第4步：填写标题
 
@@ -126,7 +162,9 @@ await page.keyboard.type(paragraph);
 await page.keyboard.press('Enter'); await page.keyboard.press('Enter'); // 段落间距
 ```
 
-统一入口：`TTC_CDP_PORT=<port> node scripts/fill.js "<标题>" "<正文(\n\n分段)>"`（⚠️ 中文内容建议改文件读取式执行，见上面第3步提示）。
+统一入口（纯文本）：`TTC_CDP_PORT=<port> node scripts/fill.js "<标题>" "<正文(\n\n分段)>"`
+
+**Markdown 文章请用 `md2toutiao.js`（见第3.5步）**：它会解析 Markdown 并真实施加标题/加粗/引用样式，而不是把 `#`、`**`、`>` 当普通文字填进去。
 
 **核验渲染（image 工具看不了本地截图，改用 DOM 提取）**：
 ```js
@@ -192,6 +230,7 @@ TTC_CDP_PORT=<port> node scripts/publish.js
 - 硬编码 CDP 端口（动态分配，从 status 取）
 - 选「单图」不传图（前端拦截发布）
 - 不点「确认发布」（二次弹窗，不点无法发布）
+- **把 Markdown 原样填入编辑器**（头条不渲染 `#`/`**`/`>`/`-`，读者会看到原始符号；Markdown 必须先用 `md2toutiao.js` 转换）
 
 ### ✅ 必须使用
 - Node.js 脚本 + playwright-core + CDP（全部操作）
@@ -201,6 +240,7 @@ TTC_CDP_PORT=<port> node scripts/publish.js
 - filechooser 事件 + `setFiles()` 上传封面
 - URL 跳 `/articles` 验证发布
 - `TTC_CDP_PORT=<port> node "<完整路径>\script.js"`（PowerShell 中文路径下不要 cd）
+- **Markdown 文章先 `md2toutiao.js` 转换再填入**（施加真实标题/加粗/引用样式）
 
 ## 浏览器环境
 - Chrome（OpenClaw 管理的浏览器），用户数据持久化

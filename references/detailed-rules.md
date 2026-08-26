@@ -105,6 +105,14 @@ for (let i = 0; i < paragraphs.length; i++) {
 ```
 统一入口：`TTC_CDP_PORT=<port> node scripts/fill.js "<标题>" "<正文>"`
 
+> ⚠️ **Markdown 文章必须先转换**：头条 syl editor 不渲染 Markdown（`#`/`**`/`>`/`-` 会原样显示给读者）。
+> Markdown 文章改用 `md2toutiao.js`（见 SKILL.md 第3.5步）：它解析 Markdown 并用工具栏 `header`/`bold`/`block_quote` 真实施加标题/加粗/引用样式，列表降级为「• 」项目符号文本。
+> 用法：
+> ```bash
+> node scripts/md2toutiao.js content/article_neon.txt --preview   # 预览转换
+> TTC_CDP_PORT=<port> node scripts/md2toutiao.js content/article_neon.txt --fill  # 真实填入
+> ```
+
 ### 第6步：处理封面 — 默认上传封面图
 
 #### 6a. 封面模式选择
