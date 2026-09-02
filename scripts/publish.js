@@ -12,6 +12,21 @@
 
 const { connectToutiaoPage } = require('./lib');
 
+// 强制隐藏 AI 助手抽屉（.ai-assistant-drawer 即便「hide」状态，其 textarea 仍驻留 DOM 并拦截指针事件，
+// 会导致 page.click 被遮罩拦截、发布无反应）。点击前必须确定性地隐藏它。
+async function dismissDrawer(page) {
+  await page.evaluate(() => {
+    const sel = ['.byte-drawer-wrapper', '.ai-assistant-drawer', '.byte-drawer-mask', '.byte-drawer-wrapper-hide'];
+    for (const s of sel) {
+      document.querySelectorAll(s).forEach(el => { el.style.display = 'none'; el.style.pointerEvents = 'none'; });
+    }
+    document.querySelectorAll('.ai-assistant-drawer textarea, .byte-drawer-wrapper textarea').forEach(t => {
+      t.style.display = 'none'; t.style.pointerEvents = 'none';
+    });
+  });
+  await new Promise(r => setTimeout(r, 300));
+}
+
 async function clickByText(page, text, timeoutMs = 5000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -34,12 +49,14 @@ async function clickByText(page, text, timeoutMs = 5000) {
     browser = b;
 
     // 1) 预览并发布
+    await dismissDrawer(page);
     const c1 = await clickByText(page, '预览并发布');
     if (!c1) { console.error('ERROR: 未找到「预览并发布」'); process.exit(1); }
     console.log('CLICKED_PREVIEW');
     await new Promise(r => setTimeout(r, 6000)); // 等预览弹窗渲染
 
     // 2) 确认发布（二次弹窗）
+    await dismissDrawer(page);
     const c2 = await clickByText(page, '确认发布');
     if (!c2) { console.error('ERROR: 未找到「确认发布」(二次弹窗可能未出现)'); process.exit(1); }
     console.log('CLICKED_CONFIRM');

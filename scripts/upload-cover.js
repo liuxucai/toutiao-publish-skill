@@ -14,6 +14,20 @@
 const fs = require('fs');
 const { connectToutiaoPage } = require('./lib');
 
+// 同 publish.js：AI 助手抽屉即便隐藏也会拦截指针事件，点上傳按钮前先确定性隐藏它
+async function dismissDrawer(page) {
+  await page.evaluate(() => {
+    const sel = ['.byte-drawer-wrapper', '.ai-assistant-drawer', '.byte-drawer-mask', '.byte-drawer-wrapper-hide'];
+    for (const s of sel) {
+      document.querySelectorAll(s).forEach(el => { el.style.display = 'none'; el.style.pointerEvents = 'none'; });
+    }
+    document.querySelectorAll('.ai-assistant-drawer textarea, .byte-drawer-wrapper textarea').forEach(t => {
+      t.style.display = 'none'; t.style.pointerEvents = 'none';
+    });
+  });
+  await new Promise(r => setTimeout(r, 300));
+}
+
 (async () => {
   const coverPath = process.argv[2];
   if (!coverPath) { console.error('ERROR: 缺少封面路径参数'); process.exit(1); }
@@ -23,6 +37,7 @@ const { connectToutiaoPage } = require('./lib');
   try {
     const { browser: b, page } = await connectToutiaoPage();
     browser = b;
+    await dismissDrawer(page);
 
     // 幂等：封面区已有图片则跳过
     const already = await page.evaluate(() => {
@@ -44,13 +59,23 @@ const { connectToutiaoPage } = require('./lib');
     // 2) 点 .article-cover-add 开弹窗
     await page.evaluate(() => { const el = document.querySelector('.article-cover-add'); if (el) el.click(); });
     console.log('OPEN_COVER_MODAL');
-    await new Promise(r => setTimeout(r, 1200));
+    await new Promise(r => setTimeout(r, 1500));
 
     // 3) 长按 filechooser：点「本地上传」(.upload-btn) 会触发 input[type=file] 的系统选择框
     const fcPromise = page.waitForEvent('filechooser', { timeout: 15000 }).catch(() => null);
-    const btn = await page.$('.upload-btn');
-    if (!btn) { console.error('ERROR: 未找到「本地上传」按钮(.upload-btn)'); process.exit(1); }
-    await btn.click();
+    let clicked = false;
+    for (let attempt = 0; attempt < 5 && !clicked; attempt++) {
+      try {
+        // 等元素稳定再点，避免弹窗重渲染导致 Element is not attached
+        await page.waitForSelector('.upload-btn', { state: 'attached', timeout: 3000 });
+        const btn = await page.$(`.upload-btn:visible, .upload-btn`);
+        const handle = await page.waitForSelector('.upload-btn', { state: 'visible', timeout: 3000 }).catch(() => null);
+        if (handle) { await handle.click({ timeout: 4000 }); clicked = true; }
+      } catch (e) {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+    if (!clicked) { console.error('ERROR: 未能点击「本地上传」按钮(.upload-btn)'); process.exit(1); }
     const fc = await fcPromise;
     if (!fc) { console.error('ERROR: 未捕获 filechooser（本地上传未触发文件选择）'); process.exit(1); }
     await fc.setFiles(coverPath);
